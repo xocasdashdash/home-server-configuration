@@ -1,0 +1,74 @@
+-   hosts: home-server
+    become: yes
+    handlers:
+        -   name: systemd reload
+            systemd:
+                daemon_reload: yes
+        -   name: restart systemd-logind
+            systemd:
+                daemon_reload: yes 
+                name: systemd-logind 
+                state: restarted
+                no_block: true
+
+    tasks:
+        -   name: "Install base packages ({{ base_packages|join(',') }})"
+            apt:
+                state: present
+                name: "{{ base_packages }}"
+        -   name: Copy wifi configuration
+            block:
+                -   name: Copy rc.local script 
+                    template:
+                        src:  rc.local
+                        dest: /etc/rc.local
+                        mode: "u=rwx,g=rx,o=rx"
+                        owner: root
+                        group: root 
+                -   name: Create init script directory
+                    file:
+                        state: directory
+                        path: /opt/init_scripts
+                        mode: "u=rwx,g=rx,o=rx"
+                        owner: root
+                        group: root 
+                -   name: Copy start wifi script 
+                    template:
+                        src: start-wifi.sh 
+                        dest: /opt/init_scripts/start-wifi.sh
+                        mode: "u=rwx,g=rx,o=rx"
+                        owner: root
+                        group: root 
+                -   name: Copy wpa supplicant configuration
+                    file: 
+                        dest: /etc/wpa_supplicant.conf
+                        content: |
+                            network={
+                                ssid="MOVISTAR_333C"
+                                psk="{{ wifi.password }}"
+                            }
+                        mode: "u=rwx,g=rx,o=rx"
+                        owner: root
+                        group: root 
+        -   name: Configure logind to avoid turnoff when lid is down 
+            block:
+                -   file: 
+                        path: /etc/systemd/logind.conf.d 
+                        state: directory
+                        owner: root 
+                        group: root 
+        
+                -   template:
+                        src: logind.conf
+                        dest: /etc/systemd/logind.conf.d/001-no-shutdown.conf
+                        owner: root 
+                        group: root 
+                    notify: 
+                        -   restart systemd-logind
+        -   name: Configure SSH access with github SSH keys
+            authorized_key:
+                user: "{{ item.0 }}"
+                key: "https://github.com/{{ item.1 }}.keys"
+            with_cartesian:
+                -   "{{ remote_users }}"
+                -   "{{ github_users }}"

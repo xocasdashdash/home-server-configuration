@@ -1,0 +1,50 @@
+-   hosts: plex-server
+    become: yes
+    roles:
+        -   { 
+                role: mrlesmithjr.plex 
+            }
+    tags: 
+        -   plex_media_server
+    tasks:
+        -   name: Create media directory 
+            file: 
+                path: /srv/media
+                owner: plex 
+                group: plex 
+                mode: "u=rwx,g=rwx,o=rwx"
+                state: directory
+-   hosts: plex-server
+    become: yes
+    tags:
+        -   torrent_server
+    tasks: 
+        -   name: Installing rtorrent torrent server
+            apt: 
+                name: transmission-daemon
+                state: present
+        -   service:
+                name: transmission-daemon
+                state: stopped
+        -   template:
+                src: torrent/transmission.conf.json
+                dest: /etc/transmission-daemon/settings.json
+                owner: debian-transmission
+                group: debian-transmission
+        -   file: 
+                path: /etc/systemd/system/transmission-daemon.service.d/
+                owner: root 
+                group: root 
+                state: directory
+        -   copy:
+                content: |
+                    [Service]
+                    UMask=000
+                dest: /etc/systemd/system/transmission-daemon.service.d/override.conf
+                owner: root 
+                group: root 
+        -   systemd:
+                daemon_reload: yes
+                name: transmission-daemon
+                state: restarted
+        
